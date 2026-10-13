@@ -1,0 +1,1 @@
+import { Router } from "express"; import * as controller from "./favorites.controller.js"; const router = Router(); router.get("/", controller.list); router.post("/", controller.add); router.delete("/:id", controller.remove); export default router;

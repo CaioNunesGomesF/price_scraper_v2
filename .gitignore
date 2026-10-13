@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Production builds
+dist/
+build/
+
+# Environment files and credentials
+.env
+.env.*
+!.env.example
+backend/.env
+frontend/.env
+
+# Database migrations / dev data
+drizzle/
+
+# Logs and OS files
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db

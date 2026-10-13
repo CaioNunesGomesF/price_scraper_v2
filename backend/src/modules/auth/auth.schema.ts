@@ -1,0 +1,3 @@
+import { pgTable, text, timestamp, uuid, varchar } from "drizzle-orm/pg-core";
+export const usersTable = pgTable("users", { id: uuid("id").primaryKey().defaultRandom(), email: varchar("email", { length: 320 }).notNull().unique(), passwordHash: text("password_hash").notNull(), createdAt: timestamp("created_at").defaultNow().notNull() });
+export const sessionsTable = pgTable("sessions", { id: uuid("id").primaryKey().defaultRandom(), userId: uuid("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }), tokenHash: varchar("token_hash", { length: 64 }).notNull().unique(), expiresAt: timestamp("expires_at").notNull(), createdAt: timestamp("created_at").defaultNow().notNull() });

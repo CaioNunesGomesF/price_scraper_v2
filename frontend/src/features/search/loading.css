@@ -1,0 +1,36 @@
+.loading-line {
+  position: relative;
+  width: 190px;
+  height: 3px;
+  margin-top: 17px;
+  overflow: hidden;
+  border-radius: 3px;
+  background: #e7eee8;
+}
+
+.loading-line span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 38%;
+  border-radius: inherit;
+  background: #397451;
+  animation: loading-sweep 1.25s cubic-bezier(.55, .05, .35, .95) infinite;
+}
+
+.loading-mark {
+  animation: loading-breathe 1.8s ease-in-out infinite;
+}
+
+@keyframes loading-sweep {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(290%); }
+}
+
+@keyframes loading-breathe {
+  50% { opacity: .62; transform: scale(.94); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-line span,
+  .loading-mark { animation: none; }
+}
