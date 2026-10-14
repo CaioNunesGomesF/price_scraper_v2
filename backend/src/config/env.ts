@@ -11,6 +11,10 @@ const envSchema = z.object({
   MELI_CLIENT_SECRET: z.string().min(1).optional(),
   MELI_REDIRECT_URI: z.string().url().optional(),
   SERPAPI_API_KEY: z.string().min(1).optional(),
+  LLM_FALLBACK_BASE_URL: z.string().url().optional(),
+  LLM_FALLBACK_MODEL: z.string().min(1).optional(),
+  LLM_FALLBACK_API_KEY: z.string().min(1).optional(),
+  LLM_FALLBACK_MAX_TOKENS: z.coerce.number().int().positive().max(4_000).default(2_800),
 });
 
 export const env = envSchema.parse(process.env);

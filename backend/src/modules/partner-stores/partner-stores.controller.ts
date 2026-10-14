@@ -6,8 +6,12 @@ export async function list(_req: Request, res: Response) {
   return res.sendSuccess(await service.getDirectory());
 }
 
+export async function listCatalog(_req: Request, res: Response) {
+  return res.sendSuccess(await service.getCatalog());
+}
+
 export async function create(req: Request, res: Response) {
   const data = createPartnerStoreSchema.parse(req.body);
   const result = await service.submitStore(data);
-  return res.sendSuccess(result, "Cadastro recebido e enviado para análise.", 201);
+  return res.sendSuccess(result, "Cadastro recebido e ativado no catálogo.", 201);
 }

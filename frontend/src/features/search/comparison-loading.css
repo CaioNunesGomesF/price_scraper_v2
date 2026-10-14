@@ -1,0 +1,6 @@
+.comparison-loading strong { display: block; margin-top: 14px; color: #405746; font-size: 12px; }
+.comparison-loading p { margin: 5px 0 0; color: #7d8d81; font-size: 11px; line-height: 1.5; }
+.comparison-refreshing { display: flex; align-items: flex-start; gap: 9px; margin-bottom: 13px; padding: 10px 11px; border: 1px solid #f0e3d5; border-radius: 8px; color: #8d663f; background: #fffaf4; font-size: 10px; }
+.comparison-refreshing strong { display: block; color: #8a5f37; font-size: 11px; }
+.comparison-refreshing div span { display: block; margin-top: 3px; color: #a4876b; font-weight: 400; line-height: 1.4; }
+.comparison-section-heading > span.is-loading { color: #b56e3e; font-weight: 700; }

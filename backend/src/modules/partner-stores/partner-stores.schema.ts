@@ -10,6 +10,7 @@ export const partnerStoresTable = pgTable("partner_stores", {
   description: text("description"),
   city: varchar("city", { length: 100 }),
   state: varchar("state", { length: 2 }),
+  priority: integer("priority").notNull().default(0),
   status: varchar("status", { length: 16 }).$type<StoreReviewStatus>().notNull().default("pending"),
   createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),

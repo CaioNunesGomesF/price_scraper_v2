@@ -1,7 +1,10 @@
+import { and, desc, eq } from "drizzle-orm";
+import db from "../../config/db.js";
 import { env } from "../../config/env.js";
 import { ServiceUnavailableError } from "../../errors/app-error.js";
 import { getValidAccessToken } from "../integrations/mercado-livre/mercado-livre.service.js";
-import { Offer } from "./search.zod.js";
+import { chatSessionsTable, searchCacheTable } from "./search.schema.js";
+import { offerSchema, Offer } from "./search.zod.js";
 
 type MercadoLivreSearchResponse = {
   results?: Array<{
@@ -12,30 +15,10 @@ type MercadoLivreSearchResponse = {
     currency_id?: string;
     permalink?: string;
     thumbnail?: string;
-    seller?: { nickname?: string };
+    seller?: { id?: number; nickname?: string };
     address?: { city_name?: string; state_name?: string };
     shipping?: { free_shipping?: boolean };
   }>;
-};
-
-type MercadoLivreErrorResponse = {
-  error?: string;
-  status?: number;
-};
-
-type MeliItem = {
-  item_id?: string;
-  title?: string;
-  price?: number;
-  currency_id?: string;
-  permalink?: string;
-  thumbnail?: string;
-  shipping?: { free_shipping?: boolean };
-  seller_id?: number;
-  seller_address?: {
-    city?: { name?: string };
-    state?: { name?: string };
-  };
 };
 
 export async function searchMercadoLivre(query: string): Promise<Offer[]> {
@@ -46,122 +29,138 @@ export async function searchMercadoLivre(query: string): Promise<Offer[]> {
   };
 
   try {
-    // 1. Descobrir o dominio e a categoria mais relevante para o termo buscado
-    let categoryId = "MLB1055"; // Default Celulares e Smartphones
-    try {
-      const discRes = await fetch(
-        `https://api.mercadolibre.com/sites/MLB/domain_discovery/search?q=${encodeURIComponent(query)}`,
-        { headers, signal: AbortSignal.timeout(8_000) },
-      );
-      if (discRes.ok) {
-        const disc = (await discRes.json()) as Array<{ category_id?: string }>;
-        const first = disc[0];
-        if (first?.category_id) {
-          categoryId = first.category_id;
-        }
-      }
-    } catch {
-      // Ignora falha na descoberta de dominio e usa fallback
-    }
-
-    // 2. Buscar os produtos em destaque da categoria
-    const highlightsRes = await fetch(
-      `https://api.mercadolibre.com/highlights/MLB/category/${categoryId}`,
-      { headers, signal: AbortSignal.timeout(8_000) },
+    const response = await fetch(
+      `https://api.mercadolibre.com/sites/MLB/search?q=${encodeURIComponent(query)}&limit=10&sort=relevance`,
+      { headers, signal: AbortSignal.timeout(10_000) },
     );
+    if (!response.ok) throw new ServiceUnavailableError("Nao foi possivel pesquisar no Mercado Livre.");
 
-    if (!highlightsRes.ok) {
-      throw new ServiceUnavailableError("Nao foi possivel obter destaques do Mercado Livre.");
-    }
-
-    const highlightsData = (await highlightsRes.json()) as {
-      content?: Array<{ id: string; type: string }>;
-    };
-
-    const productIds = (highlightsData.content ?? [])
-      .filter((c) => c.type === "PRODUCT" && Boolean(c.id))
-      .slice(0, 10)
-      .map((c) => c.id);
-
-    if (productIds.length === 0) {
-      return [];
-    }
-
-    // 3. A listagem de itens já traz os dados da oferta; evita uma chamada extra
-    // ao endpoint de produto para cada resultado.
-    const productFetches = productIds.map(async (pid) => {
-      try {
-        const itemsRes = await fetch(`https://api.mercadolibre.com/products/${pid}/items`, {
-          headers,
-          signal: AbortSignal.timeout(8_000),
-        });
-        if (!itemsRes.ok) return null;
-        const itemsData = (await itemsRes.json()) as { results?: MeliItem[] };
-        const bestItem = itemsData.results?.[0] ?? null;
-
-        if (!bestItem || typeof bestItem.price !== "number") return null;
-        const price = bestItem.price;
-
-        // Algumas respostas não incluem título/foto/link no item; nesse caso,
-        // consulta o produto somente como fallback, não em toda busca.
-        let productDetails: { name?: string; permalink?: string; pictures?: Array<{ url?: string }> } | null = null;
-        if (!bestItem.title || !bestItem.thumbnail || !bestItem.permalink) {
-          try {
-            const productRes = await fetch(`https://api.mercadolibre.com/products/${pid}`, {
-              headers,
-              signal: AbortSignal.timeout(8_000),
-            });
-            if (productRes.ok) productDetails = await productRes.json();
-          } catch {
-            // Mantém os campos disponíveis na resposta de itens.
-          }
-        }
-
-        const title = bestItem.title || productDetails?.name || "Produto Mercado Livre";
-        const location = [
-          bestItem?.seller_address?.city?.name,
-          bestItem?.seller_address?.state?.name,
-        ]
-          .filter(Boolean)
-          .join(", ") || null;
-
-        const permalink =
-          bestItem?.permalink ||
-          productDetails?.permalink ||
-          `https://produto.mercadolivre.com.br/${bestItem?.item_id || pid}`;
-
-        const thumbnail =
-          (bestItem?.thumbnail || productDetails?.pictures?.[0]?.url)?.replace(
-            "http://",
-            "https://",
-          ) || null;
-
-        const offer: Offer = {
-          id: bestItem?.item_id || pid,
-          source: "mercado_livre" as const,
-          title,
-          price,
-          originalPrice: null,
-          currency: "BRL" as const,
-          freeShipping: bestItem?.shipping?.free_shipping ?? false,
-          seller: bestItem?.seller_id ? `Vendedor #${bestItem.seller_id}` : null,
-          location,
-          permalink,
-          thumbnail,
-          updatedAt: new Date().toISOString(),
-        };
-
-        return offer;
-      } catch {
-        return null;
-      }
+    const payload = (await response.json()) as MercadoLivreSearchResponse;
+    const offers: Array<Offer | null> = (payload.results ?? []).slice(0, 10).map((item): Offer | null => {
+      if (!item.id || typeof item.price !== "number" || !item.title || !item.permalink) return null;
+      const location = [item.address?.city_name, item.address?.state_name].filter(Boolean).join(", ") || null;
+      return {
+        id: item.id,
+        source: "mercado_livre" as const,
+        title: item.title,
+        price: item.price,
+        originalPrice: item.original_price ?? null,
+        currency: "BRL" as const,
+        freeShipping: item.shipping?.free_shipping ?? false,
+        seller: item.seller?.nickname ?? (item.seller?.id ? `Vendedor #${item.seller.id}` : null),
+        location,
+        permalink: item.permalink,
+        thumbnail: item.thumbnail?.replace("http://", "https://") ?? null,
+        updatedAt: new Date().toISOString(),
+      } satisfies Offer;
     });
-
-    const settled = await Promise.all(productFetches);
-    return settled.filter((item): item is Offer => item !== null);
+    return offers.filter((item): item is Offer => item !== null);
   } catch (error) {
     if (error instanceof ServiceUnavailableError) throw error;
     throw new ServiceUnavailableError("O Mercado Livre nao respondeu a busca.");
+  }
+}
+
+export async function getSearchCache(queryKey: string) {
+  try {
+    const [entry] = await db
+      .select()
+      .from(searchCacheTable)
+      .where(eq(searchCacheTable.queryKey, queryKey));
+    return entry ?? null;
+  } catch (error) {
+    console.warn("Cache de busca indisponível; seguindo sem cache.", error);
+    return null;
+  }
+}
+
+export async function saveSearchCache(input: {
+  queryKey: string;
+  prompt: string;
+  interpretation: unknown;
+  offers: unknown;
+  fetchedAt: Date;
+  expiresAt: Date;
+  lastError?: string | null;
+}) {
+  try {
+    const [entry] = await db
+      .insert(searchCacheTable)
+      .values(input)
+      .onConflictDoUpdate({
+        target: searchCacheTable.queryKey,
+        set: {
+          prompt: input.prompt,
+          interpretation: input.interpretation,
+          offers: input.offers,
+          fetchedAt: input.fetchedAt,
+          expiresAt: input.expiresAt,
+          lastError: input.lastError ?? null,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return entry ?? null;
+  } catch (error) {
+    console.warn("Não foi possível atualizar o cache de busca.", error);
+    return null;
+  }
+}
+
+export async function listCachedOffers(limit = 200) {
+  try {
+    const rows = await db
+      .select({ offers: searchCacheTable.offers, fetchedAt: searchCacheTable.fetchedAt })
+      .from(searchCacheTable)
+      .orderBy(desc(searchCacheTable.fetchedAt))
+      .limit(50);
+    const uniqueOffers = new Map<string, Offer>();
+
+    for (const row of rows) {
+      const parsed = offerSchema.array().safeParse(row.offers);
+      if (!parsed.success) continue;
+      for (const offer of parsed.data) {
+        if (!uniqueOffers.has(offer.id)) uniqueOffers.set(offer.id, offer);
+        if (uniqueOffers.size >= limit) break;
+      }
+      if (uniqueOffers.size >= limit) break;
+    }
+
+    return {
+      offers: [...uniqueOffers.values()].sort((a, b) => a.price - b.price),
+      cachedSearches: rows.length,
+      lastUpdatedAt: rows[0]?.fetchedAt?.toISOString() ?? null,
+    };
+  } catch (error) {
+    console.warn("Não foi possível carregar as ofertas do dashboard.", error);
+    return { offers: [], cachedSearches: 0, lastUpdatedAt: null };
+  }
+}
+
+export async function listSessionOffers(userId: string, limit = 200) {
+  try {
+    const rows = await db
+      .select({ offers: chatSessionsTable.offers, createdAt: chatSessionsTable.createdAt })
+      .from(chatSessionsTable)
+      .where(eq(chatSessionsTable.userId, userId))
+      .orderBy(desc(chatSessionsTable.createdAt))
+      .limit(50);
+    const uniqueOffers = new Map<string, Offer>();
+
+    for (const row of rows) {
+      const parsed = offerSchema.array().safeParse(row.offers);
+      if (!parsed.success) continue;
+      for (const offer of parsed.data) {
+        if (!uniqueOffers.has(offer.id)) uniqueOffers.set(offer.id, offer);
+        if (uniqueOffers.size >= limit) break;
+      }
+      if (uniqueOffers.size >= limit) break;
+    }
+
+    return [...uniqueOffers.values()].sort((a, b) => a.price - b.price);
+  } catch (error) {
+    console.warn("Não foi possível carregar as ofertas do histórico.", error);
+    return [];
   }
 }
 
@@ -315,4 +314,50 @@ export async function searchGoogleShopping(query: string): Promise<Offer[]> {
   } catch {
     return [];
   }
+}
+
+export async function createSession(
+  userId: string,
+  prompt: string,
+  interpretation: unknown,
+  offers: unknown,
+) {
+  const [created] = await db
+    .insert(chatSessionsTable)
+    .values({
+      userId,
+      prompt,
+      interpretation,
+      offers,
+    })
+    .returning();
+  return created;
+}
+
+export async function listSessions(userId: string) {
+  return db
+    .select()
+    .from(chatSessionsTable)
+    .where(eq(chatSessionsTable.userId, userId))
+    .orderBy(desc(chatSessionsTable.createdAt));
+}
+
+export async function getSessionById(userId: string, id: string) {
+  const [session] = await db
+    .select()
+    .from(chatSessionsTable)
+    .where(and(eq(chatSessionsTable.userId, userId), eq(chatSessionsTable.id, id)));
+  return session ?? null;
+}
+
+export async function deleteSession(userId: string, id: string) {
+  await db
+    .delete(chatSessionsTable)
+    .where(and(eq(chatSessionsTable.userId, userId), eq(chatSessionsTable.id, id)));
+}
+
+export async function clearSessions(userId: string) {
+  await db
+    .delete(chatSessionsTable)
+    .where(eq(chatSessionsTable.userId, userId));
 }

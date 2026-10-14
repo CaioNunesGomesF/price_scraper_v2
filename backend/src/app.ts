@@ -6,6 +6,8 @@ import mercadoLivreRoutes from "./modules/integrations/mercado-livre/mercado-liv
 import authRoutes from "./modules/auth/auth.routes.js";
 import favoritesRoutes from "./modules/favorites/favorites.routes.js";
 import partnerStoreRoutes from "./modules/partner-stores/partner-stores.routes.js";
+import equipmentAnalysisRoutes from "./modules/equipment-analysis/equipment-analysis.routes.js";
+import profileRoutes from "./modules/profile/profile.routes.js";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import { responseMiddleware } from "./middlewares/response.middleware.js";
 
@@ -23,5 +25,7 @@ app.use("/api/integrations/mercado-livre", mercadoLivreRoutes);
 app.use("/api/auth", authRoutes);
 app.use("/api/favorites", favoritesRoutes);
 app.use("/api/stores", partnerStoreRoutes);
+app.use("/api/analyzer", equipmentAnalysisRoutes);
+app.use("/api/profile", profileRoutes);
 
 app.use(errorMiddleware);

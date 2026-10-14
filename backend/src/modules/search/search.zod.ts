@@ -17,6 +17,14 @@ export const offerSchema = z.object({
   permalink: z.string().url(),
   thumbnail: z.string().url().nullable(),
   updatedAt: z.string().datetime(),
+  rating: z.number().min(0).max(5).nullable().optional(),
+  reviewCount: z.number().int().nonnegative().nullable().optional(),
+  reviewHighlights: z.array(z.string().max(280)).max(3).optional(),
+  priority: z.number().int().nonnegative().optional(),
+});
+
+export const sessionIdParamSchema = z.object({
+  id: z.string().uuid(),
 });
 
 export type SearchRequestDTO = z.infer<typeof searchRequestSchema>;

@@ -11,6 +11,8 @@
 .store-mark.is-fallback { border-color: transparent; }
 .store-mark.is-fallback span { display: grid; width: 100%; height: 100%; place-items: center; }
 .store-source-marketplace { background: #2876c8; }.store-source-retailer { background: #e65b22; }.store-source-aggregator { color: #3b4a40; background: #e6ece7; }.store-source-partner { background: #286145; }
+.store-mark-cometa { width: 78px; border-color: #eef0ec; background: #fff; }.store-mark-cometa img { width: 72px; height: 32px; }
+.partner-store-row.store-row-cometa { grid-template-columns: 78px minmax(0, 1fr) auto auto; }
 .store-source-copy { display: block; min-width: 0; }
 .store-source-copy strong { display: block; overflow: hidden; color: #334036; font-size: 13px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .store-source-copy small { display: block; margin-top: 5px; color: #89958b; font-size: 11px; line-height: 1.4; }
@@ -52,6 +54,7 @@
   .store-source-row { grid-template-columns: 40px minmax(0, 1fr); }
   .store-source-kind { grid-column: 2; margin-top: -8px; }
   .partner-store-row { grid-template-columns: 40px minmax(0, 1fr) auto; }
+  .partner-store-row.store-row-cometa { grid-template-columns: 78px minmax(0, 1fr) auto; }
   .partner-product-count { grid-column: 2; }
   .partner-store-link { grid-column: 3; grid-row: 1 / span 2; }
   .store-location-fields { grid-template-columns: minmax(0, 1fr) 82px; }
